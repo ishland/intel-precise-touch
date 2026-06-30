@@ -28,7 +28,13 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 
 	dev_info(ipts->dev, "IPTS running in event mode\n");
 
-	while (!ipts_thread_should_stop(thread)) {
+	bool should_stop = false;
+
+	while (!should_stop) {
+		should_stop = ipts_thread_should_stop(thread);
+
+		if (should_stop) break;
+
 		struct ipts_rsp_ready_for_data rsp = { 0 };
 		struct ipts_data_buffer *buffer = NULL;
 
@@ -51,6 +57,9 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 		if (ret)
 			dev_err(ipts->dev, "Failed to send feedback: %d\n", ret);
 
+		if (should_stop)
+			break;
+
 		ret = ipts_control_request_data(ipts);
 		if (ret)
 			dev_err(ipts->dev, "Failed to request data: %d\n", ret);
@@ -61,21 +70,6 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 	if (ret) {
 		dev_err(ipts->dev, "Failed to request flush: %d\n", ret);
 		return ret;
-	}
-
-	dev_info(ipts->dev, "Draining data\n");
-	// drain all data
-	while (true) {
-		ret = ipts_control_wait_data(ipts, NULL);
-		if (ret) {
-			if (ret == -EAGAIN) {
-				ret = 0;
-				break;
-			} else {
-				dev_err(ipts->dev, "Failed to wait for data: %d\n", ret);
-				return ret;
-			}
-		}
 	}
 
 	dev_info(ipts->dev, "Waiting for flush\n");
@@ -106,10 +100,13 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 
 	dev_info(ipts->dev, "IPTS running in poll mode\n");
 
+	bool is_stopping = false;
+	int peek_cnt = 0;
+
 	while (true) {
 		bool should_stop = ipts_thread_should_stop(thread);
 
-		if (should_stop) {
+		if (should_stop && !is_stopping) {
 			dev_info(ipts->dev, "Requesting cleanup flush\n");
 			ret = ipts_control_request_flush(ipts);
 			if (ret) {
@@ -117,9 +114,28 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 				return ret;
 			}
 
+			is_stopping = true;
+			peek_cnt = 512;
+
 			/*
 			 * We have to process all outstanding data for the flush to succeed.
 			 */
+		}
+
+		// drain until we hear flush up to a certain amount of time
+		if (is_stopping && peek_cnt > 0) {
+			ret = ipts_control_poll_flush(ipts);
+			if (ret == 0) // success
+				break;
+
+			if (ret != -EAGAIN)
+				dev_err(ipts->dev, "Failed to poll for flush: %d\n", ret);
+
+			ret = 0;
+
+			peek_cnt --;
+			if (peek_cnt == 0)
+				break; // timeout
 		}
 
 		/*
@@ -148,44 +164,19 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 			current_buffer++;
 		}
 
-		if (should_stop)
-			break;
-
 		/*
 		 * If the last change was less than 5 seconds ago, sleep for a shorter period so
 		 * that new data can be processed quickly. If there was no change for more than
 		 * 5 seconds, sleep longer to avoid wasting CPU cycles.
 		 */
-		if (last + 5 > ktime_get_seconds())
+		if (is_stopping || last + 5 > ktime_get_seconds())
 			usleep_range(1 * USEC_PER_MSEC, 5 * USEC_PER_MSEC);
 		else
 			msleep(200);
 	}
 
-	dev_info(ipts->dev, "Draining data for exit\n");
-	// drain all data
-	while (true) {
-		ret = ipts_control_wait_data(ipts, NULL);
-		if (ret) {
-			if (ret == -EAGAIN) {
-				ret = 0;
-				break;
-			} else {
-				dev_err(ipts->dev, "Failed to wait for data: %d\n", ret);
-				return ret;
-			}
-		}
-	}
-
-	dev_info(ipts->dev, "Waiting for flush\n");
-	ret = ipts_control_wait_flush(ipts);
-	if (ret) {
-		dev_err(ipts->dev, "Failed to wait for flush: %d\n", ret);
-
-		if (ret != -EAGAIN)
-			return ret;
-		else
-			return 0;
+	if (peek_cnt == 0) {
+		dev_info(ipts->dev, "Failed to wait for flush: timeout\n");
 	}
 
 	dev_info(ipts->dev, "Receiver loop exit\n");

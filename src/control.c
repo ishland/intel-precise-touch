@@ -184,6 +184,18 @@ int ipts_control_wait_flush(struct ipts_context *ipts)
 	return rsp.status;
 }
 
+int ipts_control_poll_flush(struct ipts_context *ipts)
+{
+	int ret = 0;
+	struct ipts_response rsp = { 0 };
+
+	ret = ipts_mei_recv_timeout(&ipts->mei, IPTS_CMD_QUIESCE_IO, &rsp, 0);
+	if (ret)
+		return ret;
+
+	return rsp.status;
+}
+
 int ipts_control_request_data(struct ipts_context *ipts)
 {
 	return ipts_mei_send(&ipts->mei, IPTS_CMD_READY_FOR_DATA, NULL, 0);
@@ -195,6 +207,27 @@ int ipts_control_wait_data(struct ipts_context *ipts, struct ipts_rsp_ready_for_
 	struct ipts_response rsp = { 0 };
 
 	ret = ipts_mei_recv(&ipts->mei, IPTS_CMD_READY_FOR_DATA, &rsp);
+	if (ret)
+		return ret;
+
+	/*
+	 * During shutdown, it is possible that the sensor has already been disabled.
+	 */
+	if (rsp.status == IPTS_STATUS_SENSOR_DISABLED)
+		return 0;
+
+	if (rsp.status == IPTS_STATUS_SUCCESS && response)
+		*response = rsp.payload.ready_for_data;
+
+	return rsp.status;
+}
+
+int ipts_control_poll_data(struct ipts_context *ipts, struct ipts_rsp_ready_for_data *response)
+{
+	int ret = 0;
+	struct ipts_response rsp = { 0 };
+
+	ret = ipts_mei_recv_timeout(&ipts->mei, IPTS_CMD_READY_FOR_DATA, &rsp, 0);
 	if (ret)
 		return ret;
 
