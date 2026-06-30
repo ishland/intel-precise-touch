@@ -54,7 +54,7 @@
  *
  * Userspace should not rely on this value and instead find the size through the HID descriptor.
  */
-#define IPTS_HID_REPORT_DATA_SIZE 7485
+#define IPTS_HID_REPORT_DATA_SIZE 7488
 
 /**
  * ipts_singletouch_descriptor - The singletouch descriptor.

@@ -295,7 +295,7 @@ int ipts_control_hid2me_feedback(struct ipts_context *ipts, enum ipts_feedback_c
 	return rsp.status;
 }
 
-int ipts_control_start(struct ipts_context *ipts)
+static int _ipts_control_start_unlocked(struct ipts_context *ipts)
 {
 	int ret = 0;
 
@@ -390,7 +390,17 @@ int ipts_control_start(struct ipts_context *ipts)
 	return 0;
 }
 
-static int _ipts_control_stop(struct ipts_context *ipts)
+int ipts_control_start(struct ipts_context *ipts) {
+	int ret = 0;
+
+	mutex_lock(&ipts->control_lock);
+	ret = _ipts_control_start_unlocked(ipts);
+	mutex_unlock(&ipts->control_lock);
+
+	return ret;
+}
+
+static int _ipts_control_stop_receiver_unlocked(struct ipts_context *ipts)
 {
 	int ret = 0;
 
@@ -407,11 +417,11 @@ static int _ipts_control_stop(struct ipts_context *ipts)
 	return 0;
 }
 
-int ipts_control_stop(struct ipts_context *ipts)
+static int _ipts_control_stop_unlocked(struct ipts_context *ipts)
 {
 	int ret = 0;
 
-	ret = _ipts_control_stop(ipts);
+	ret = _ipts_control_stop_receiver_unlocked(ipts);
 	if (ret)
 		return ret;
 
@@ -424,22 +434,35 @@ int ipts_control_stop(struct ipts_context *ipts)
 	return 0;
 }
 
+int ipts_control_stop(struct ipts_context *ipts) {
+	int ret = 0;
+
+	mutex_lock(&ipts->control_lock);
+	ret = _ipts_control_stop_unlocked(ipts);
+	mutex_unlock(&ipts->control_lock);
+
+	return ret;
+}
+
 int ipts_control_restart(struct ipts_context *ipts)
 {
 	int ret = 0;
 
-	ret = _ipts_control_stop(ipts);
+	mutex_lock(&ipts->control_lock);
+	ret = _ipts_control_stop_receiver_unlocked(ipts);
 	if (ret)
-		return ret;
+		goto out;
 
 	/*
 	 * Wait a second to give the sensor time to fully shut down.
 	 */
 	msleep(1000);
 
-	ret = ipts_control_start(ipts);
+	ret = _ipts_control_start_unlocked(ipts);
 	if (ret)
-		return ret;
+		goto out;
 
-	return 0;
+	out:
+	mutex_unlock(&ipts->control_lock);
+	return ret;
 }

@@ -58,6 +58,8 @@ static int ipts_probe(struct mei_cl_device *cldev, const struct mei_cl_device_id
 	ipts->dev = &cldev->dev;
 	ipts->mode = IPTS_MODE_EVENT;
 
+	mutex_init(&ipts->control_lock);
+
 	mutex_init(&ipts->feature_lock);
 	init_completion(&ipts->feature_event);
 

@@ -73,6 +73,8 @@ struct ipts_context {
 	enum ipts_mode mode;
 	struct ipts_rsp_get_device_info info;
 
+	struct mutex control_lock;
+
 	struct mutex feature_lock;
 	struct completion feature_event;
 

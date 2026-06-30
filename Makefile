@@ -28,7 +28,7 @@ sources += src/thread.h
 KVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KVERSION)/build
 
-DEBUG ?= y
+DEBUG ?= n
 
 all:
 	$(MAKE) -C $(KDIR) M=$(PWD)/src CONFIG_HID_IPTS=m IPTS_DEBUG=$(DEBUG) modules

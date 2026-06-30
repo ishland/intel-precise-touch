@@ -60,7 +60,7 @@ int ipts_mei_recv_timeout(struct ipts_mei *mei, enum ipts_command_code code,
 static inline int ipts_mei_recv(struct ipts_mei *mei, enum ipts_command_code code,
 				struct ipts_response *response)
 {
-	return ipts_mei_recv_timeout(mei, code, response, 1 * MSEC_PER_SEC);
+	return ipts_mei_recv_timeout(mei, code, response, 2 * MSEC_PER_SEC);
 }
 
 void ipts_mei_init(struct ipts_mei *mei, struct mei_cl_device *cldev);
