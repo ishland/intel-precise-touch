@@ -56,22 +56,29 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 			dev_err(ipts->dev, "Failed to request data: %d\n", ret);
 	}
 
+	dev_info(ipts->dev, "Requesting cleanup flush\n");
 	ret = ipts_control_request_flush(ipts);
 	if (ret) {
 		dev_err(ipts->dev, "Failed to request flush: %d\n", ret);
 		return ret;
 	}
 
-	ret = ipts_control_wait_data(ipts, NULL);
-	if (ret) {
-		dev_err(ipts->dev, "Failed to wait for data: %d\n", ret);
-
-		if (ret != -EAGAIN)
-			return ret;
-		else
-			return 0;
+	dev_info(ipts->dev, "Draining data\n");
+	// drain all data
+	while (true) {
+		ret = ipts_control_wait_data(ipts, NULL);
+		if (ret) {
+			if (ret == -EAGAIN) {
+				ret = 0;
+				break;
+			} else {
+				dev_err(ipts->dev, "Failed to wait for data: %d\n", ret);
+				return ret;
+			}
+		}
 	}
 
+	dev_info(ipts->dev, "Waiting for flush\n");
 	ret = ipts_control_wait_flush(ipts);
 	if (ret) {
 		dev_err(ipts->dev, "Failed to wait for flush: %d\n", ret);
@@ -81,6 +88,8 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 		else
 			return 0;
 	}
+
+	dev_info(ipts->dev, "Receiver loop exit\n");
 
 	return 0;
 }
@@ -98,7 +107,10 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 	dev_info(ipts->dev, "IPTS running in poll mode\n");
 
 	while (true) {
-		if (ipts_thread_should_stop(thread)) {
+		bool should_stop = ipts_thread_should_stop(thread);
+
+		if (should_stop) {
+			dev_info(ipts->dev, "Requesting cleanup flush\n");
 			ret = ipts_control_request_flush(ipts);
 			if (ret) {
 				dev_err(ipts->dev, "Failed to request flush: %d\n", ret);
@@ -136,7 +148,7 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 			current_buffer++;
 		}
 
-		if (ipts_thread_should_stop(thread))
+		if (should_stop)
 			break;
 
 		/*
@@ -150,16 +162,22 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 			msleep(200);
 	}
 
-	ret = ipts_control_wait_data(ipts, NULL);
-	if (ret) {
-		dev_err(ipts->dev, "Failed to wait for data: %d\n", ret);
-
-		if (ret != -EAGAIN)
-			return ret;
-		else
-			return 0;
+	dev_info(ipts->dev, "Draining data for exit\n");
+	// drain all data
+	while (true) {
+		ret = ipts_control_wait_data(ipts, NULL);
+		if (ret) {
+			if (ret == -EAGAIN) {
+				ret = 0;
+				break;
+			} else {
+				dev_err(ipts->dev, "Failed to wait for data: %d\n", ret);
+				return ret;
+			}
+		}
 	}
 
+	dev_info(ipts->dev, "Waiting for flush\n");
 	ret = ipts_control_wait_flush(ipts);
 	if (ret) {
 		dev_err(ipts->dev, "Failed to wait for flush: %d\n", ret);
@@ -170,6 +188,7 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 			return 0;
 	}
 
+	dev_info(ipts->dev, "Receiver loop exit\n");
 	return 0;
 }
 
