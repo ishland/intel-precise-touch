@@ -176,7 +176,12 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 	}
 
 	if (peek_cnt == 0) {
-		dev_info(ipts->dev, "Failed to wait for flush: timeout\n");
+		dev_err(ipts->dev, "Failed to wait for flush: timeout\n");
+	}
+
+	ret = ipts_control_poll_data(ipts, NULL);
+	if (ret) {
+		dev_err(ipts->dev, "Failed to poll for data: %d\n", ret);
 	}
 
 	dev_info(ipts->dev, "Receiver loop exit\n");
