@@ -33,14 +33,15 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 	while (!should_stop) {
 		should_stop = ipts_thread_should_stop(thread);
 
-		if (should_stop) break;
-
 		struct ipts_rsp_ready_for_data rsp = { 0 };
 		struct ipts_data_buffer *buffer = NULL;
 
 		ret = ipts_control_wait_data(ipts, &rsp);
-		if (ret == -EAGAIN)
+		if (ret == -EAGAIN) {
+			if (should_stop)
+				break;
 			continue;
+		}
 
 		if (ret) {
 			dev_err(ipts->dev, "Failed to wait for data: %d\n", ret);
