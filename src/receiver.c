@@ -29,6 +29,7 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 	dev_info(ipts->dev, "IPTS running in event mode\n");
 
 	bool should_stop = false;
+	bool data_requested = false;
 
 	while (!should_stop) {
 		should_stop = ipts_thread_should_stop(thread);
@@ -36,10 +37,27 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 		struct ipts_rsp_ready_for_data rsp = { 0 };
 		struct ipts_data_buffer *buffer = NULL;
 
+		if (!data_requested) {
+			ret = ipts_control_request_data(ipts);
+			if (ret)
+				dev_err(ipts->dev, "Failed to request data: %d\n", ret);
+			data_requested = true;
+		}
+
+		if (should_stop) {
+			dev_info(ipts->dev, "Requesting cleanup flush\n");
+			ret = ipts_control_request_flush(ipts);
+			if (ret) {
+				dev_err(ipts->dev, "Failed to request flush: %d\n", ret);
+				return ret;
+			}
+		}
+
 		ret = ipts_control_wait_data(ipts, &rsp);
 		if (ret == -EAGAIN) {
-			if (should_stop)
+			if (should_stop) {
 				break;
+			}
 			continue;
 		}
 
@@ -58,19 +76,7 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 		if (ret)
 			dev_err(ipts->dev, "Failed to send feedback: %d\n", ret);
 
-		if (should_stop)
-			break;
-
-		ret = ipts_control_request_data(ipts);
-		if (ret)
-			dev_err(ipts->dev, "Failed to request data: %d\n", ret);
-	}
-
-	dev_info(ipts->dev, "Requesting cleanup flush\n");
-	ret = ipts_control_request_flush(ipts);
-	if (ret) {
-		dev_err(ipts->dev, "Failed to request flush: %d\n", ret);
-		return ret;
+		data_requested = false;
 	}
 
 	dev_info(ipts->dev, "Waiting for flush\n");
@@ -103,6 +109,10 @@ static int ipts_receiver_poll(struct ipts_thread *thread)
 
 	bool is_stopping = false;
 	int peek_cnt = 0;
+
+	ret = ipts_control_request_data(ipts);
+	if (ret)
+		dev_err(ipts->dev, "Failed to request data: %d\n", ret);
 
 	while (true) {
 		bool should_stop = ipts_thread_should_stop(thread);

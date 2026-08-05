@@ -406,11 +406,11 @@ static int _ipts_control_start_unlocked(struct ipts_context *ipts)
 		return ret;
 	}
 
-	ret = ipts_control_request_data(ipts);
-	if (ret) {
-		dev_err(ipts->dev, "Failed to request data: %d\n", ret);
-		return ret;
-	}
+	// ret = ipts_control_request_data(ipts);
+	// if (ret) {
+	// 	dev_err(ipts->dev, "Failed to request data: %d\n", ret);
+	// 	return ret;
+	// }
 
 	ipts_hid_enable(ipts);
 
