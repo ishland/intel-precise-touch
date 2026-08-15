@@ -7,6 +7,7 @@
 
 #include <linux/completion.h>
 #include <linux/err.h>
+#include <linux/sched/task.h>
 #include <linux/kthread.h>
 #include <linux/mutex.h>
 
@@ -46,7 +47,14 @@ int ipts_thread_start(struct ipts_thread *thread, int (*threadfn)(struct ipts_th
 	thread->should_stop = false;
 	thread->threadfn = threadfn;
 
-	thread->thread = kthread_run(ipts_thread_runner, thread, name);
+	struct task_struct *kthread = kthread_create(ipts_thread_runner, thread, name);
+	if (!IS_ERR(kthread)) {
+		get_task_struct(kthread); // hold refcnt
+		wake_up_process(kthread);
+		thread->thread = kthread;
+	} else {
+		thread->thread = NULL;
+	}
 	return PTR_ERR_OR_ZERO(thread->thread);
 }
 
@@ -65,7 +73,7 @@ int ipts_thread_stop(struct ipts_thread *thread)
 	wmb();
 
 	wait_for_completion(&thread->done);
-	ret = kthread_stop(thread->thread);
+	ret = kthread_stop_put(thread->thread);
 
 	thread->thread = NULL;
 	thread->data = NULL;
