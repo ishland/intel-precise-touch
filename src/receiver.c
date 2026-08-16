@@ -49,7 +49,7 @@ static int ipts_receiver_event(struct ipts_thread *thread)
 			ret = ipts_control_request_flush(ipts);
 			if (ret) {
 				dev_err(ipts->dev, "Failed to request flush: %d\n", ret);
-				return ret;
+				break;
 			}
 		}
 
