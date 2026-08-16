@@ -55,7 +55,7 @@ int ipts_thread_start(struct ipts_thread *thread, int (*threadfn)(struct ipts_th
 	} else {
 		thread->thread = NULL;
 	}
-	return PTR_ERR_OR_ZERO(thread->thread);
+	return PTR_ERR_OR_ZERO(kthread);
 }
 
 int ipts_thread_stop(struct ipts_thread *thread)
